@@ -31,4 +31,20 @@ npm test
 
 ## Usage
 
+### Installing Skills
+
+To install the opencode skill for this project:
+
+```bash
+npm run install:skills
+```
+
+This builds the project and installs the skill to `.opencode/skill/schema_mcp_skill/SKILL.md`.
+
+### Running the Server
+
+```bash
+npm run dev
+```
+
 See `docs/spec.md` for detailed specifications.

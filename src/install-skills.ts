@@ -9,7 +9,7 @@ const __dirname = dirname(__filename);
 
 export async function installSkills() {
   const targetDir = '.opencode/skill/schema_mcp_skill';
-  const sourceFile = join(__dirname, 'skills', 'SKILL.md.template');
+  const sourceFile = join(__dirname, '..', 'src', 'skills', 'SKILL.md.template');
   const targetFile = join(targetDir, 'SKILL.md');
 
   console.log('Installing schema-mcp skills...');
@@ -26,6 +26,4 @@ export async function installSkills() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  installSkills();
-}
+installSkills();

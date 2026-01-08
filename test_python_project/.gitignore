@@ -19,3 +19,4 @@ ENV/
 htmlcov/
 .mypy_cache/
 .DS_Store
+.schema_mcp/

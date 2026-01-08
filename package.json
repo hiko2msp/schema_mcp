@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/cli.ts",
-    "build": "node node_modules/typescript/bin/tsc && cp -r src/skills dist/skills",
+    "build": "node node_modules/typescript/bin/tsc && cp -r src/skills dist/skills && chmod +x dist/install-skills.js",
     "start": "node dist/cli.js",
     "test": "node node_modules/vitest/dist/cli.js run",
     "test:watch": "node node_modules/vitest/dist/cli.js",
@@ -20,7 +20,9 @@
     "lint:fix": "node node_modules/eslint/bin/eslint.js src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "typecheck": "node node_modules/typescript/bin/tsc --noEmit"
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "install:skills": "npm run build && node dist/install-skills.js",
+    "clean:test_data": "find test_python_project -name 'schema.sql' -delete && find test_python_project -name 'metadata.yaml' -delete && rm -rf test_python_project/.schema_mcp"
   },
   "keywords": [
     "mcp",
