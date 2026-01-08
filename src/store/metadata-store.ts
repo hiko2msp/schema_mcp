@@ -1,24 +1,27 @@
 import type { SchemaMetadata, TableMetadata } from '../core/types.js';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import * as yaml from 'yaml';
 
 export class MetadataStore {
   private metadataPath: string;
 
-  constructor(storePath: string = './metadata') {
+  constructor(storePath: string = './.schema_mcp') {
     this.metadataPath = storePath;
   }
 
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
-    const filePath = join(this.metadataPath, `${catalog}.yaml`);
-    await mkdir(dirname(filePath), { recursive: true });
+    const catalogDir = join(this.metadataPath, catalog);
+    const filePath = join(catalogDir, 'metadata.yaml');
+
+    await mkdir(catalogDir, { recursive: true });
     await writeFile(filePath, yaml.stringify(metadata), 'utf-8');
   }
 
   async load(catalog: string): Promise<SchemaMetadata | null> {
-    const filePath = join(this.metadataPath, `${catalog}.yaml`);
+    const catalogDir = join(this.metadataPath, catalog);
+    const filePath = join(catalogDir, 'metadata.yaml');
 
     if (!existsSync(filePath)) {
       return null;
@@ -33,8 +36,21 @@ export class MetadataStore {
       return [];
     }
 
-    // This would need fs.readdir - simplified for now
-    return ['default'];
+    const entries = await readdir(this.metadataPath, { withFileTypes: true });
+    const catalogs: string[] = [];
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const catalogPath = join(this.metadataPath, entry.name);
+        const metadataPath = join(catalogPath, 'metadata.yaml');
+
+        if (existsSync(metadataPath)) {
+          catalogs.push(entry.name);
+        }
+      }
+    }
+
+    return catalogs;
   }
 
   async updateTableMetadata(

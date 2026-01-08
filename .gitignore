@@ -26,3 +26,6 @@ Thumbs.db
 
 # Testing
 execution-data/
+
+# DB
+*.db

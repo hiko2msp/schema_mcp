@@ -11,8 +11,7 @@ export class MCPServer {
   private server: Server;
   private store: MetadataStore;
 
-  constructor(_catalog: string = 'default', storePath: string = './metadata') {
-    this.store = new MetadataStore(storePath);
+  constructor(_catalog: string = 'default', storePath: string = './.schema_mcp') {
     this.server = new Server(
       {
         name: 'schema-mcp-server',

@@ -1,0 +1,123 @@
+# Schema MCP Skill
+
+## 概要
+
+このスキルは、プロジェクトのデータベーススキーマ情報を自動的に収集・構造化し、schema-mcp MCPサーバーからアクセス可能にします。
+
+## タスク
+
+### 1. カタログ名の決定
+
+以下の基準でカタログ名を決定してください：
+
+- **単一データベース**: プロジェクト名（例: `myapp`、`ecommerce`）
+- **複数データベース**: `<プロジェクト名>_<コンポーネント名>`（例: `myapp_main`、`myapp_analytics`）
+
+プロジェクト名は以下の順序で推論してください：
+1. `package.json` → `name` フィールド
+2. `pyproject.toml` → `project.name` フィールド
+3. `Cargo.toml` → `[package].name` フィールド
+4. `composer.json` → `name` フィールド
+5. カレントディレクトリ名
+
+### 2. DDLファイルの収集と結合
+
+カレントワーキングディレクトリ（cwd）以下からDDLファイルを収集してください：
+
+- `*.sql` ファイル（特に `schema.sql`、`structure.sql`、`init.sql`）
+- `db/schema.sql`、`database/schema.sql`、`sql/schema.sql` などの一般的なパス
+- マイグレーションディレクトリ内の最新のDDLファイル
+
+**重要**: マイグレーションの履歴は無視し、最新のスキーマ定義のみを収集してください。
+
+DDLファイルはファイル名順で結合し、以下のパスに保存してください：
+
+```
+.schema_mcp/<catalog_name>/schema.sql
+```
+
+### 3. メタデータの抽出と保存
+
+schema-mcp Pipelineを使用して、DDLからメタデータを抽出してください：
+
+1. **DDL抽出**: `DDLExtractor` を使用してテーブル・カラム構造を抽出
+2. **メタデータ推論**: 各テーブル・カラムに対して以下を推論・付与
+   - テーブルの業務的な意味・責務
+   - カラムの説明
+   - 外部キー関係の説明
+3. **メタデータ保存**: 抽出結果を以下のパスに保存
+
+```
+.schema_mcp/<catalog_name>/metadata.yaml
+```
+
+メタデータの推論にあたっては、以下を根拠として記録してください：
+- ファイル名・パス（どのDDLファイルから抽出されたか）
+- コードの使用箇所（ORMマッピング、クエリ等）
+- 命名規則（テーブル名、カラム名から推測される意味）
+
+### 4. schema-mcp MCPサーバーとの連携
+
+schema-mcp MCPサーバーが収集した情報にアクセスできるよう、以下の手順を実行してください：
+
+1. **Metadata Store設定**: Metadata Store のパスを `./.schema_mcp` に設定
+2. **スキーマ抽出**: Pipeline を使用してスキーマ情報を抽出・保存
+   ```typescript
+   const pipeline = new Pipeline('./.schema_mcp');
+   await pipeline.run(catalog, [{ type: 'ddl', path: './.schema_mcp/' + catalog + '/schema.sql' }]);
+   ```
+3. **アクセステスト**: MCPツールを使用して情報取得をテスト
+   - `get_table_schema` - テーブルの完全なスキーマ・メタデータを取得
+   - `search_tables` - テーブル・カラムを曖昧検索
+   - `update_table_metadata` - メタデータを手動修正
+
+### 5. 複数データベース対応
+
+プロジェクトに複数のデータベースがある場合、それぞれのデータベースに対して以下を実行してください：
+
+1. 互いに独立したDDLファイルを識別（例: `db/schema_main.sql`、`db/schema_analytics.sql`）
+2. カタログ名で区分（例: `myapp_main`、`myapp_analytics`）
+3. 各カタログごとにスキーマファイルとメタデータを保存
+
+```
+.schema_mcp/
+├── myapp_main/
+│   ├── schema.sql
+│   └── metadata.yaml
+└── myapp_analytics/
+    ├── schema.sql
+    └── metadata.yaml
+```
+
+## 依存ツール
+
+このスキルは以下のツールを使用します：
+
+- schema-mcp MCPサーバーのツール
+  - `get_table_schema` - テーブルの完全なスキーマ・メタデータを取得
+  - `search_tables` - テーブル・カラムを曖昧検索
+  - `update_table_metadata` - メタデータを手動修正
+  - `list_catalog` - 利用可能なカタログ一覧を返す
+  - `list_schema` - カタログ内のスキーマ一覧
+  - `list_tables` - スキーマ内のテーブル一覧
+
+## ディレクトリ構造
+
+```
+cwd/
+├── .schema_mcp/
+│   └── <catalog_name>/
+│       ├── schema.sql      # 結合されたDDLファイル
+│       └── metadata.yaml   # 抽出されたメタデータ
+├── db/
+│   ├── schema.sql          # 元のDDLファイル
+│   └── migrations/
+└── ...
+```
+
+## 成功条件
+
+- DDLファイルが正しく収集され、`.schema_mcp/<catalog_name>/schema.sql` に保存されている
+- schema-mcp Pipelineを使用してメタデータが抽出され、`metadata.yaml` に保存されている
+- MCPツールを使用してスキーマ情報を取得できる
+- 複数データベースがある場合、各カタログが正しく区分されている

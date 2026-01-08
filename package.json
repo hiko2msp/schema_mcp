@@ -5,21 +5,22 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "schema-mcp": "dist/cli.js"
+    "schema-mcp": "dist/cli.js",
+    "schema-mcp-install-skills": "dist/install-skills.js"
   },
   "scripts": {
     "dev": "tsx watch src/cli.ts",
-    "build": "tsc",
+    "build": "node node_modules/typescript/bin/tsc && cp -r src/skills dist/skills",
     "start": "node dist/cli.js",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "test:unit": "vitest run src/**/__tests__/*.test.ts",
-    "test:integration": "vitest run src/**/__tests__/*.integration.ts",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
+    "test": "node node_modules/vitest/dist/cli.js run",
+    "test:watch": "node node_modules/vitest/dist/cli.js",
+    "test:unit": "node node_modules/vitest/dist/cli.js run src/**/__tests__/*.test.ts",
+    "test:integration": "node node_modules/vitest/dist/cli.js run src/**/__tests__/*.integration.ts",
+    "lint": "node node_modules/eslint/bin/eslint.js src --ext .ts",
+    "lint:fix": "node node_modules/eslint/bin/eslint.js src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit"
   },
   "keywords": [
     "mcp",
