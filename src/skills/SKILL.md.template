@@ -10,10 +10,14 @@ metadata:
 
 ## What I do
 
-- Collect DDL files and combine them into a single schema file `schema.sql` and save it in the `.schema_mcp/<catalog_name>/` directory
+- Collect DDL files and combine them into a single schema file `schema.sql` in the project root
+- Move `schema.sql` to `.schema_mcp/<catalog_name>/` directory for reference
 - Extract table and column metadata using schema-mcp Pipeline
-- Infer descriptions for tables, columns, and foreign key relationships
-- Store metadata in `.schema_mcp/<catalog_name>/` directory
+- Infer meaningful descriptions for tables and columns based on names and types:
+  - Tables: Infer purpose from table name (e.g., "user_clicks" → "Stores user click tracking data")
+  - Columns: Infer meaning from name and type (e.g., "user_id" → "Unique identifier of the user", "updated_at" → "Timestamp of last update")
+  - Use foreign keys to infer relationships (e.g., "user_id" references "users.id" → "Foreign key referencing users table")
+- Store metadata in `.schema_mcp/<catalog_name>/metadata.yaml`
 - Support multiple databases with separate catalogs
 
 ## When to use me
