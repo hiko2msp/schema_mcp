@@ -122,4 +122,37 @@ describe('MetadataStore', () => {
     expect(updated?.tables[0].description).toBe('Updated description');
     expect(updated?.tables[0].source).toBe('overridden');
   });
+
+  describe('Security', () => {
+    it('should throw an error for invalid catalog names to prevent path traversal', async () => {
+      const maliciousCatalogs = [
+        '../',
+        '..',
+        './',
+        '/',
+        '\\',
+        'invalid/catalog',
+        'invalid\\catalog',
+        '../../etc/passwd',
+      ];
+
+      for (const catalog of maliciousCatalogs) {
+        await expect(store.load(catalog)).rejects.toThrow(
+          `Invalid catalog name: "${catalog}". Only alphanumeric characters, hyphens, and underscores are allowed.`
+        );
+        await expect(store.save(catalog, {} as any)).rejects.toThrow(
+          `Invalid catalog name: "${catalog}". Only alphanumeric characters, hyphens, and underscores are allowed.`
+        );
+      }
+    });
+
+    it('should allow valid catalog names', async () => {
+      const validCatalogs = ['valid-catalog', 'valid_catalog', 'valid123'];
+
+      for (const catalog of validCatalogs) {
+        // We don't expect it to find a file, but it shouldn't throw a sanitization error
+        await expect(store.load(catalog)).resolves.toBeNull();
+      }
+    });
+  });
 });

@@ -11,8 +11,18 @@ export class MetadataStore {
     this.metadataPath = storePath;
   }
 
+  private _sanitize(name: string): string {
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      throw new Error(
+        `Invalid catalog name: "${name}". Only alphanumeric characters, hyphens, and underscores are allowed.`
+      );
+    }
+    return name;
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
-    const catalogDir = join(this.metadataPath, catalog);
+    const sanitizedCatalog = this._sanitize(catalog);
+    const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
     await mkdir(catalogDir, { recursive: true });
@@ -20,7 +30,8 @@ export class MetadataStore {
   }
 
   async load(catalog: string): Promise<SchemaMetadata | null> {
-    const catalogDir = join(this.metadataPath, catalog);
+    const sanitizedCatalog = this._sanitize(catalog);
+    const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
     if (!existsSync(filePath)) {
@@ -58,9 +69,10 @@ export class MetadataStore {
     tableName: string,
     updates: Partial<TableMetadata>
   ): Promise<void> {
-    const metadata = await this.load(catalog);
+    const sanitizedCatalog = this._sanitize(catalog);
+    const metadata = await this.load(sanitizedCatalog);
     if (!metadata) {
-      throw new Error(`Catalog ${catalog} not found`);
+      throw new Error(`Catalog ${sanitizedCatalog} not found`);
     }
 
     const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
@@ -74,11 +86,12 @@ export class MetadataStore {
       source: 'overridden',
     };
 
-    await this.save(catalog, metadata);
+    await this.save(sanitizedCatalog, metadata);
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
-    const metadata = await this.load(catalog);
+    const sanitizedCatalog = this._sanitize(catalog);
+    const metadata = await this.load(sanitizedCatalog);
     if (!metadata) {
       return [];
     }
