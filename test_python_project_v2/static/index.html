@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Counter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .counter {
+            font-size: 48px;
+            font-weight: bold;
+            color: #0066cc;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0052a3;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .user-input {
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 200px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Button Counter</h1>
+    
+    <div class="user-input">
+        <label for="userId">User ID:</label>
+        <input type="text" id="userId" placeholder="Enter your user ID">
+        <button onclick="setUser()">Set User</button>
+    </div>
+    
+    <div class="counter" id="counter">0</div>
+    
+    <button onclick="incrementCounter()" id="clickButton" disabled>Click Me!</button>
+    
+    <div id="error" class="error"></div>
+    
+    <script>
+        let currentUserId = null;
+        const apiUrl = window.location.origin + '/api';
+
+        async function setUser() {
+            const userIdInput = document.getElementById('userId');
+            const errorDiv = document.getElementById('error');
+            const userId = userIdInput.value.trim();
+            
+            if (!userId) {
+                errorDiv.textContent = 'Please enter a user ID';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiUrl}/clicks/${encodeURIComponent(userId)}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUserId = userId;
+                    document.getElementById('counter').textContent = data.click_count;
+                    document.getElementById('clickButton').disabled = false;
+                    errorDiv.textContent = '';
+                } else if (response.status === 404) {
+                    currentUserId = userId;
+                    document.getElementById('counter').textContent = 0;
+                    document.getElementById('clickButton').disabled = false;
+                    errorDiv.textContent = '';
+                } else {
+                    errorDiv.textContent = 'Error loading user data';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Error connecting to server';
+            }
+        }
+
+        async function incrementCounter() {
+            if (!currentUserId) {
+                return;
+            }
+            
+            const errorDiv = document.getElementById('error');
+            
+            try {
+                const response = await fetch(`${apiUrl}/click/${encodeURIComponent(currentUserId)}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('counter').textContent = data.click_count;
+                    errorDiv.textContent = '';
+                } else {
+                    errorDiv.textContent = 'Error incrementing counter';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Error connecting to server';
+            }
+        }
+
+        document.getElementById('userId').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                setUser();
+            }
+        });
+    </script>
+</body>
+</html>
