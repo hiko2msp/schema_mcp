@@ -18,7 +18,7 @@ from app.models import UserClick, UserGroup
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # init_db()
+    init_db()
     yield
 
 
@@ -48,6 +48,32 @@ class GroupClickResponse(BaseModel):
 @app.get("/")
 async def read_root():
     return FileResponse(str(static_dir / "index.html"))
+
+
+class UserRequest(BaseModel):
+    user_id: str
+    group_name: str
+
+
+@app.post("/api/user", response_model=ClickResponse)
+async def get_or_create_user(request: UserRequest, db: Session = Depends(get_db)):
+    user_group = db.query(UserGroup).filter(UserGroup.group_name == request.group_name).first()
+    if not user_group:
+        user_group = UserGroup(group_name=request.group_name, total_click_count=0)
+        db.add(user_group)
+        db.commit()
+        db.refresh(user_group)
+
+    user_click = db.query(UserClick).filter(UserClick.user_id == request.user_id).first()
+    if not user_click:
+        user_click = UserClick(user_id=request.user_id, click_count=0, group=user_group)
+        db.add(user_click)
+        db.commit()
+        db.refresh(user_click)
+
+    response = user_click.to_dict()
+    response["group_total_click_count"] = user_click.group.total_click_count if user_click.group else 0
+    return response
 
 
 @app.post("/api/click/{user_id}", response_model=ClickResponse)

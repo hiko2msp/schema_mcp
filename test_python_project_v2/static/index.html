@@ -93,34 +93,29 @@
                 return;
             }
             
-            currentUserId = userId;
-            currentGroupName = groupName;
-
             try {
-                const userResponse = await fetch(`${apiUrl}/clicks/${encodeURIComponent(userId)}`);
-                
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    document.getElementById('userCounter').textContent = userData.click_count;
-                    document.getElementById('groupCounter').textContent = userData.group_total_click_count;
-                } else if (userResponse.status === 404) {
-                    document.getElementById('userCounter').textContent = 0;
-                    // Fetch group data even if user is new
-                    const groupResponse = await fetch(`${apiUrl}/clicks/group/${encodeURIComponent(groupName)}`);
-                    if (groupResponse.ok) {
-                        const groupData = await groupResponse.json();
-                        document.getElementById('groupCounter').textContent = groupData.total_click_count;
-                    } else {
-                        document.getElementById('groupCounter').textContent = 0;
-                    }
-                } else {
-                    throw new Error('Error loading user data');
-                }
+                const response = await fetch(`${apiUrl}/user`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId, group_name: groupName })
+                });
 
-                document.getElementById('clickButton').disabled = false;
-                errorDiv.textContent = '';
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUserId = userId;
+                    currentGroupName = groupName;
+                    document.getElementById('userCounter').textContent = data.click_count;
+                    document.getElementById('groupCounter').textContent = data.group_total_click_count;
+                    document.getElementById('clickButton').disabled = false;
+                    errorDiv.textContent = '';
+                } else {
+                    const errorData = await response.json();
+                    errorDiv.textContent = errorData.detail || 'Error setting user data';
+                }
             } catch (error) {
-                errorDiv.textContent = error.message || 'Error connecting to server';
+                errorDiv.textContent = 'Error connecting to server';
             }
         }
 

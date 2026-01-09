@@ -1,51 +1,17 @@
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent))
-
-import pytest
 from fastapi.testclient import TestClient
-from app.main import app
-from app.database import init_db, get_db
-from app.models import UserClick, UserGroup, Base
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from app.models import UserClick, UserGroup
 
-SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
-
-engine = create_engine(
-    SQLALCHEMY_TEST_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# The `client` fixture is now provided by `conftest.py`
+# The `setup_database` fixture is also provided by `conftest.py`
 
 
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-
-client = TestClient(app)
-
-
-@pytest.fixture(scope="function")
-def setup_database():
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-
-def test_read_root():
+def test_read_root(client: TestClient):
     response = client.get("/")
     assert response.status_code == 200
     assert "Button Counter" in response.text
 
 
-def test_increment_new_user(setup_database):
+def test_increment_new_user(client: TestClient):
     response = client.post("/api/click/testuser", json={"group_name": "testgroup"})
     assert response.status_code == 200
     data = response.json()
@@ -53,13 +19,11 @@ def test_increment_new_user(setup_database):
     assert data["click_count"] == 1
 
 
-def test_increment_existing_user(setup_database):
-    db = TestingSessionLocal()
+def test_increment_existing_user(client: TestClient, db_session):
     group = UserGroup(group_name="testgroup")
     user_click = UserClick(user_id="testuser", click_count=5, group=group)
-    db.add(user_click)
-    db.commit()
-    db.close()
+    db_session.add(user_click)
+    db_session.commit()
     
     response = client.post("/api/click/testuser", json={"group_name": "testgroup"})
     assert response.status_code == 200
@@ -68,13 +32,11 @@ def test_increment_existing_user(setup_database):
     assert data["click_count"] == 6
 
 
-def test_get_clicks_for_existing_user(setup_database):
-    db = TestingSessionLocal()
+def test_get_clicks_for_existing_user(client: TestClient, db_session):
     group = UserGroup(group_name="testgroup")
     user_click = UserClick(user_id="testuser", click_count=3, group=group)
-    db.add(user_click)
-    db.commit()
-    db.close()
+    db_session.add(user_click)
+    db_session.commit()
     
     response = client.get("/api/clicks/testuser")
     assert response.status_code == 200
@@ -83,13 +45,13 @@ def test_get_clicks_for_existing_user(setup_database):
     assert data["click_count"] == 3
 
 
-def test_get_clicks_for_nonexistent_user(setup_database):
+def test_get_clicks_for_nonexistent_user(client: TestClient):
     response = client.get("/api/clicks/nonexistent")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
 
-def test_multiple_clicks(setup_database):
+def test_multiple_clicks(client: TestClient):
     user_id = "multiclick_user"
     
     for i in range(5):
