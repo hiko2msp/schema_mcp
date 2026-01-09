@@ -59,10 +59,17 @@
     <div class="user-input">
         <label for="userId">User ID:</label>
         <input type="text" id="userId" placeholder="Enter your user ID">
-        <button onclick="setUser()">Set User</button>
+        <label for="groupName">Group Name:</label>
+        <input type="text" id="groupName" placeholder="Enter your group name">
+        <button onclick="setUser()">Set User & Group</button>
     </div>
     
-    <div class="counter" id="counter">0</div>
+    <div>
+        User Clicks: <span class="counter" id="userCounter">0</span>
+    </div>
+    <div>
+        Group Clicks: <span class="counter" id="groupCounter">0</span>
+    </div>
     
     <button onclick="incrementCounter()" id="clickButton" disabled>Click Me!</button>
     
@@ -70,42 +77,55 @@
     
     <script>
         let currentUserId = null;
+        let currentGroupName = null;
         const apiUrl = window.location.origin + '/api';
 
         async function setUser() {
             const userIdInput = document.getElementById('userId');
+            const groupNameInput = document.getElementById('groupName');
             const errorDiv = document.getElementById('error');
+
             const userId = userIdInput.value.trim();
+            const groupName = groupNameInput.value.trim();
             
-            if (!userId) {
-                errorDiv.textContent = 'Please enter a user ID';
+            if (!userId || !groupName) {
+                errorDiv.textContent = 'Please enter both a user ID and a group name';
                 return;
             }
             
+            currentUserId = userId;
+            currentGroupName = groupName;
+
             try {
-                const response = await fetch(`${apiUrl}/clicks/${encodeURIComponent(userId)}`);
+                const userResponse = await fetch(`${apiUrl}/clicks/${encodeURIComponent(userId)}`);
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    currentUserId = userId;
-                    document.getElementById('counter').textContent = data.click_count;
-                    document.getElementById('clickButton').disabled = false;
-                    errorDiv.textContent = '';
-                } else if (response.status === 404) {
-                    currentUserId = userId;
-                    document.getElementById('counter').textContent = 0;
-                    document.getElementById('clickButton').disabled = false;
-                    errorDiv.textContent = '';
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    document.getElementById('userCounter').textContent = userData.click_count;
+                    document.getElementById('groupCounter').textContent = userData.group_total_click_count;
+                } else if (userResponse.status === 404) {
+                    document.getElementById('userCounter').textContent = 0;
+                    // Fetch group data even if user is new
+                    const groupResponse = await fetch(`${apiUrl}/clicks/group/${encodeURIComponent(groupName)}`);
+                    if (groupResponse.ok) {
+                        const groupData = await groupResponse.json();
+                        document.getElementById('groupCounter').textContent = groupData.total_click_count;
+                    } else {
+                        document.getElementById('groupCounter').textContent = 0;
+                    }
                 } else {
-                    errorDiv.textContent = 'Error loading user data';
+                    throw new Error('Error loading user data');
                 }
+
+                document.getElementById('clickButton').disabled = false;
+                errorDiv.textContent = '';
             } catch (error) {
-                errorDiv.textContent = 'Error connecting to server';
+                errorDiv.textContent = error.message || 'Error connecting to server';
             }
         }
 
         async function incrementCounter() {
-            if (!currentUserId) {
+            if (!currentUserId || !currentGroupName) {
                 return;
             }
             
@@ -113,26 +133,35 @@
             
             try {
                 const response = await fetch(`${apiUrl}/click/${encodeURIComponent(currentUserId)}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ group_name: currentGroupName })
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    document.getElementById('counter').textContent = data.click_count;
+                    document.getElementById('userCounter').textContent = data.click_count;
+                    document.getElementById('groupCounter').textContent = data.group_total_click_count;
                     errorDiv.textContent = '';
                 } else {
-                    errorDiv.textContent = 'Error incrementing counter';
+                    const errorData = await response.json();
+                    errorDiv.textContent = errorData.detail || 'Error incrementing counter';
                 }
             } catch (error) {
                 errorDiv.textContent = 'Error connecting to server';
             }
         }
 
-        document.getElementById('userId').addEventListener('keypress', function(event) {
+        function handleKeyPress(event) {
             if (event.key === 'Enter') {
                 setUser();
             }
-        });
+        }
+
+        document.getElementById('userId').addEventListener('keypress', handleKeyPress);
+        document.getElementById('groupName').addEventListener('keypress', handleKeyPress);
     </script>
 </body>
 </html>

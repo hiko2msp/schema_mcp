@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.database import init_db, get_db
-from app.models import UserClick
+from app.models import UserClick, UserGroup, Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -34,9 +34,9 @@ client = TestClient(app)
 
 @pytest.fixture(scope="function")
 def setup_database():
-    UserClick.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     yield
-    UserClick.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=engine)
 
 
 def test_read_root():
@@ -46,7 +46,7 @@ def test_read_root():
 
 
 def test_increment_new_user(setup_database):
-    response = client.post("/api/click/testuser")
+    response = client.post("/api/click/testuser", json={"group_name": "testgroup"})
     assert response.status_code == 200
     data = response.json()
     assert data["user_id"] == "testuser"
@@ -55,12 +55,13 @@ def test_increment_new_user(setup_database):
 
 def test_increment_existing_user(setup_database):
     db = TestingSessionLocal()
-    user_click = UserClick(user_id="testuser", click_count=5)
+    group = UserGroup(group_name="testgroup")
+    user_click = UserClick(user_id="testuser", click_count=5, group=group)
     db.add(user_click)
     db.commit()
     db.close()
     
-    response = client.post("/api/click/testuser")
+    response = client.post("/api/click/testuser", json={"group_name": "testgroup"})
     assert response.status_code == 200
     data = response.json()
     assert data["user_id"] == "testuser"
@@ -69,7 +70,8 @@ def test_increment_existing_user(setup_database):
 
 def test_get_clicks_for_existing_user(setup_database):
     db = TestingSessionLocal()
-    user_click = UserClick(user_id="testuser", click_count=3)
+    group = UserGroup(group_name="testgroup")
+    user_click = UserClick(user_id="testuser", click_count=3, group=group)
     db.add(user_click)
     db.commit()
     db.close()
@@ -91,7 +93,7 @@ def test_multiple_clicks(setup_database):
     user_id = "multiclick_user"
     
     for i in range(5):
-        response = client.post(f"/api/click/{user_id}")
+        response = client.post(f"/api/click/{user_id}", json={"group_name": "testgroup"})
         assert response.status_code == 200
         data = response.json()
         assert data["click_count"] == i + 1
