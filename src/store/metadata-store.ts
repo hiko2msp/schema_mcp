@@ -96,6 +96,10 @@ export class MetadataStore {
       return [];
     }
 
+    if (!query || query.trim() === '') {
+      return [];
+    }
+
     const lowerQuery = query.toLowerCase();
 
     return metadata.tables.filter(

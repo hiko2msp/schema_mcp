@@ -48,6 +48,16 @@ export class Pipeline {
 
   private mergeMetadata(metadata: SchemaMetadata, result: ExtractorResult): void {
     const existingTables = new Map(metadata.tables.map(t => [t.name, t]));
+    const newTableNames = new Set(result.tables.map(t => t.name));
+
+    for (const name of existingTables.keys()) {
+      if (!newTableNames.has(name)) {
+        const index = metadata.tables.findIndex(t => t.name === name);
+        if (index !== -1) {
+          metadata.tables.splice(index, 1);
+        }
+      }
+    }
 
     for (const newTable of result.tables) {
       const existing = existingTables.get(newTable.name);
@@ -74,6 +84,7 @@ export class Pipeline {
 
       if (existingCol) {
         if (existingCol.source !== 'human' && existingCol.source !== 'overridden') {
+          existingCol.type = newCol.type;
           existingCol.description = newCol.description;
           existingCol.source = newCol.source;
           existingCol.confidence = newCol.confidence;
