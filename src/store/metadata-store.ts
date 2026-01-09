@@ -53,9 +53,9 @@ export class MetadataStore {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const catalogPath = join(this.metadataPath, entry.name);
-        const metadataPath = join(catalogPath, 'metadata.yaml');
+        const metadataFilePath = join(catalogPath, 'metadata.yaml');
 
-        if (existsSync(metadataPath)) {
+        if (existsSync(metadataFilePath)) {
           catalogs.push(entry.name);
         }
       }

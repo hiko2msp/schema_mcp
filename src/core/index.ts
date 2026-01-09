@@ -1,0 +1,2 @@
+export type { TableMetadata, ColumnMetadata, ForeignKey, IndexMetadata, SchemaMetadata, ExtractorConfig, ExtractorResult } from './types.js';
+export { DescriptionGenerator } from './description-generator.js';

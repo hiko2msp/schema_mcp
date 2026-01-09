@@ -1,0 +1,61 @@
+name: Schema MCP Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  extract-schema:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build project
+        run: npm run build
+        
+      - name: Detect project type
+        id: detect
+        run: |
+          if [ -f "schema.prisma" ]; then
+            echo "type=prisma" >> $GITHUB_OUTPUT
+            echo "catalog=prisma" >> $GITHUB_OUTPUT
+          elif [ -f "schema.sql" ]; then
+            echo "type=ddl" >> $GITHUB_OUTPUT
+            echo "catalog=ddl" >> $GITHUB_OUTPUT
+          elif [ -f "alembic.ini" ]; then
+            echo "type=alembic" >> $GITHUB_OUTPUT
+            echo "catalog=alembic" >> $GITHUB_OUTPUT
+          elif [ -f "migrations" ]; then
+            echo "type=sqlalchemy" >> $GITHUB_OUTPUT
+            echo "catalog=sqlalchemy" >> $GITHUB_OUTPUT
+          else
+            echo "type=unknown" >> $GITHUB_OUTPUT
+            echo "catalog=default" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Run schema extraction
+        run: |
+          node dist/cli.js extract \
+            --catalog ${{ steps.detect.outputs.catalog }} \
+            --type ${{ steps.detect.outputs.type }} \
+            --path ./
+            
+      - name: Upload metadata artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-metadata-${{ steps.detect.outputs.catalog }}
+          path: .schema_mcp/
+          retention-days: 30
