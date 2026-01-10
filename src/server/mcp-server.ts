@@ -166,7 +166,7 @@ export class MCPServer {
   }
 
   private async handleToolCall(name: string, args: Record<string, string>) {
-    const catalog = args.catalog || 'default';
+    const catalog = this.store.sanitize(args.catalog || 'default');
 
     switch (name) {
       case 'list_schema': {

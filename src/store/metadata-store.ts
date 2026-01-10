@@ -11,7 +11,7 @@ export class MetadataStore {
     this.metadataPath = storePath;
   }
 
-  private _sanitize(name: string): string {
+  sanitize(name: string): string {
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
       throw new Error(
         `Invalid catalog name: "${name}". Only alphanumeric characters, hyphens, and underscores are allowed.`
@@ -21,7 +21,7 @@ export class MetadataStore {
   }
 
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
-    const sanitizedCatalog = this._sanitize(catalog);
+    const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
@@ -30,7 +30,7 @@ export class MetadataStore {
   }
 
   async load(catalog: string): Promise<SchemaMetadata | null> {
-    const sanitizedCatalog = this._sanitize(catalog);
+    const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
@@ -69,7 +69,7 @@ export class MetadataStore {
     tableName: string,
     updates: Partial<TableMetadata>
   ): Promise<void> {
-    const sanitizedCatalog = this._sanitize(catalog);
+    const sanitizedCatalog = this.sanitize(catalog);
     const metadata = await this.load(sanitizedCatalog);
     if (!metadata) {
       throw new Error(`Catalog ${sanitizedCatalog} not found`);
@@ -90,7 +90,7 @@ export class MetadataStore {
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
-    const sanitizedCatalog = this._sanitize(catalog);
+    const sanitizedCatalog = this.sanitize(catalog);
     const metadata = await this.load(sanitizedCatalog);
     if (!metadata) {
       return [];
