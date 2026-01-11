@@ -154,5 +154,57 @@ describe('MetadataStore', () => {
         await expect(store.load(catalog)).resolves.toBeNull();
       }
     });
+
+    it('should sanitize HTML in table descriptions to prevent XSS on save', async () => {
+      const maliciousDescription = '<script>alert("XSS")</script>';
+      const sanitizedDescription = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
+
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: maliciousDescription,
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [],
+          },
+        ],
+      };
+
+      await store.save('test', metadata);
+      const loaded = await store.load('test');
+      expect(loaded?.tables[0].description).toBe(sanitizedDescription);
+    });
+
+    it('should sanitize HTML in table descriptions to prevent XSS on update', async () => {
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: 'Original description',
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [],
+          },
+        ],
+      };
+
+      const maliciousDescription = '<script>alert("XSS")</script>';
+      const sanitizedDescription = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
+
+      await store.save('test', metadata);
+      await store.updateTableMetadata('test', 'users', { description: maliciousDescription });
+
+      const updated = await store.load('test');
+      expect(updated?.tables[0].description).toBe(sanitizedDescription);
+    });
   });
 });
