@@ -20,13 +20,31 @@ export class MetadataStore {
     return name;
   }
 
+  private _sanitizeHTML(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this._sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
+    // Sanitize descriptions before saving
+    const sanitizedMetadata = {
+      ...metadata,
+      tables: metadata.tables.map(table => ({
+        ...table,
+        description: table.description ? this._sanitizeHTML(table.description) : '',
+      })),
+    };
+
     await mkdir(catalogDir, { recursive: true });
-    await writeFile(filePath, yaml.stringify(metadata), 'utf-8');
+    await writeFile(filePath, yaml.stringify(sanitizedMetadata), 'utf-8');
   }
 
   async load(catalog: string): Promise<SchemaMetadata | null> {
