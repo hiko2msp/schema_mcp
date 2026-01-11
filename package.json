@@ -6,11 +6,11 @@
   "main": "dist/index.js",
   "bin": {
     "schema-mcp": "dist/cli.mjs",
-    "schema-mcp-install-skills": "dist/install-skills.js"
+    "schema-mcp-install-skills": "dist/install-skills.mjs"
   },
   "scripts": {
     "dev": "tsx watch src/cli.ts",
-    "build": "node node_modules/typescript/bin/tsc && mv dist/cli.js dist/cli.mjs 2>/dev/null || true; echo '#!/usr/bin/env node' | cat - dist/cli.mjs > dist/cli.tmp 2>/dev/null && mv dist/cli.tmp dist/cli.mjs 2>/dev/null || true; chmod +x dist/cli.mjs && cp -r src/skills dist/skills && chmod +x dist/install-skills.js",
+    "build": "node node_modules/typescript/bin/tsc && cp dist/cli.js dist/cli.mjs",
     "start": "node dist/cli.js",
     "test": "node node_modules/vitest/dist/cli.js run",
     "test:watch": "node node_modules/vitest/dist/cli.js",
