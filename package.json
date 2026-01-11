@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/cli.ts",
-    "build": "node node_modules/typescript/bin/tsc && mv dist/cli.js dist/cli.mjs",
+    "build": "node node_modules/typescript/bin/tsc && cp dist/cli.js dist/cli.mjs",
     "start": "node dist/cli.js",
     "test": "node node_modules/vitest/dist/cli.js run",
     "test:watch": "node node_modules/vitest/dist/cli.js",
