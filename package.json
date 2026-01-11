@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "bin": {
     "schema-mcp": "dist/cli.mjs",
-    "schema-mcp-install-skills": "dist/install-skills.js"
+    "schema-mcp-install-skills": "dist/install-skills.mjs"
   },
   "scripts": {
     "dev": "tsx watch src/cli.ts",
