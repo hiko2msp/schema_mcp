@@ -206,5 +206,45 @@ describe('MetadataStore', () => {
       const updated = await store.load('test');
       expect(updated?.tables[0].description).toBe(sanitizedDescription);
     });
+
+    it('should not double-sanitize HTML when updating other metadata', async () => {
+      const initialDescription = 'Table for mapping users <-> roles';
+      const correctlySanitized = 'Table for mapping users &lt;-&gt; roles';
+
+      const metadata = {
+        catalog: 'test-double-sanitize',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'user_roles',
+            schema: 'public',
+            description: initialDescription,
+            source: 'human' as const,
+            confidence: 1.0,
+            columns: [],
+          },
+        ],
+      };
+
+      // 1. Save the initial metadata. `save` will sanitize it.
+      await store.save('test-double-sanitize', metadata);
+
+      // 2. Verify it was sanitized correctly on the first save.
+      const initiallyLoaded = await store.load('test-double-sanitize');
+      expect(initiallyLoaded?.tables[0].description).toBe(correctlySanitized);
+
+      // 3. Update a different piece of metadata, which triggers the faulty logic.
+      await store.updateTableMetadata('test-double-sanitize', 'user_roles', {
+        // NOTE: We are NOT updating the description here.
+        confidence: 0.9,
+      });
+
+      // 4. Load the metadata again and check the description.
+      const updatedLoaded = await store.load('test-double-sanitize');
+
+      // The bug would cause this to be 'Table for mapping users &amp;lt;-&amp;gt; roles'
+      expect(updatedLoaded?.tables[0].description).toBe(correctlySanitized);
+    });
   });
 });
