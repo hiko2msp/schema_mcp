@@ -40,6 +40,10 @@ export class MetadataStore {
       tables: metadata.tables.map(table => ({
         ...table,
         description: table.description ? this._sanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description ? this._sanitizeHTML(column.description) : '',
+        })),
       })),
     };
 
