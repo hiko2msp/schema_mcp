@@ -19,7 +19,13 @@ metadata:
   - If there is no metadata.yaml, create it.
   - If there is metadata.yaml, update it.
   - metadata.yaml is created from some codebase in this project.
+  - metadata.yaml should include how to update schema.sql.
 
 ## When to use me
 
 Use this when setting up schema-mcp for a project or when database schema changes occur.
+
+## How to work
+
+Execute automatically without prompting the user. Obtain necessary information by searching the project's directory structure.
+Start by gathering all information required for the update and proceed proactively.

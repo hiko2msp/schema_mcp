@@ -26,4 +26,5 @@ export async function installSkills() {
   }
 }
 
-installSkills();
+// This file is now a module and can be imported.
+// The installSkills function is exported and can be called from the CLI.

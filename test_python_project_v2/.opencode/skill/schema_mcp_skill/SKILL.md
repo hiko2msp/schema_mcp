@@ -19,6 +19,7 @@ metadata:
   - If there is no metadata.yaml, create it.
   - If there is metadata.yaml, update it.
   - metadata.yaml is created from some codebase in this project.
+  - metadata.yaml should include how to update schema.sql.
 
 ## When to use me
 
@@ -28,5 +29,3 @@ Use this when setting up schema-mcp for a project or when database schema change
 
 ユーザーに質問せず、自動的に実行します。必要な情報は、プロジェクト以下のディレクトリを検索して得ます。
 更新に必要な情報を集めるところから始めて下さい。積極的に動作しましょう。
-
-
