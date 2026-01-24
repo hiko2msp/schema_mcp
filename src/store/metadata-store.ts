@@ -29,6 +29,15 @@ export class MetadataStore {
       .replace(/'/g, '&#039;');
   }
 
+  private _unsanitizeHTML(text: string): string {
+    return text
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&amp;/g, '&');
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
@@ -40,6 +49,10 @@ export class MetadataStore {
       tables: metadata.tables.map(table => ({
         ...table,
         description: table.description ? this._sanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description ? this._sanitizeHTML(column.description) : '',
+        })),
       })),
     };
 
@@ -98,8 +111,19 @@ export class MetadataStore {
       throw new Error(`Table ${tableName} not found`);
     }
 
+    // Unsanitize the existing data before merging to prevent double-sanitization
+    const existingTable = metadata.tables[tableIndex];
+    const unsanitizedTable = {
+      ...existingTable,
+      description: existingTable.description ? this._unsanitizeHTML(existingTable.description) : '',
+      columns: existingTable.columns.map(col => ({
+        ...col,
+        description: col.description ? this._unsanitizeHTML(col.description) : '',
+      })),
+    };
+
     metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
+      ...unsanitizedTable,
       ...updates,
       source: 'overridden',
     };
