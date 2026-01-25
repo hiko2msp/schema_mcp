@@ -155,9 +155,9 @@ describe('MetadataStore', () => {
       }
     });
 
-    it('should sanitize HTML in table descriptions to prevent XSS on save', async () => {
-      const maliciousDescription = '<script>alert("XSS")</script>';
-      const sanitizedDescription = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
+    it('should sanitize all descriptions on save and return sanitized data on load', async () => {
+      const malicious = '<script>alert("XSS")</script>';
+      const sanitized = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
 
       const metadata = {
         catalog: 'test',
@@ -167,21 +167,39 @@ describe('MetadataStore', () => {
           {
             name: 'users',
             schema: 'public',
-            description: maliciousDescription,
+            description: malicious,
             source: 'inferred' as const,
             confidence: 0.8,
-            columns: [],
+            columns: [
+              {
+                name: 'id',
+                type: 'uuid',
+                nullable: false,
+                primaryKey: true,
+                description: malicious,
+                source: 'inferred' as const,
+                confidence: 0.5,
+              },
+            ],
           },
         ],
       };
 
       await store.save('test', metadata);
       const loaded = await store.load('test');
-      expect(loaded?.tables[0].description).toBe(sanitizedDescription);
+
+      expect(loaded?.tables[0].description).toBe(sanitized);
+      expect(loaded?.tables[0].columns[0].description).toBe(sanitized);
     });
 
-    it('should sanitize HTML in table descriptions to prevent XSS on update', async () => {
-      const metadata = {
+    it('should correctly sanitize updates without double-sanitizing existing data', async () => {
+      const initialDescription = 'An  ऑलरेडी sanitized description with < & >';
+      const initialSanitized = 'An  ऑलरेडी sanitized description with &lt; &amp; &gt;';
+
+      const updateDescription = '<script>new XSS</script>';
+      const updateSanitized = '&lt;script&gt;new XSS&lt;/script&gt;';
+
+      const initialMetadata = {
         catalog: 'test',
         version: '1.0.0',
         lastUpdated: new Date().toISOString(),
@@ -189,22 +207,36 @@ describe('MetadataStore', () => {
           {
             name: 'users',
             schema: 'public',
-            description: 'Original description',
+            description: initialDescription,
             source: 'inferred' as const,
             confidence: 0.8,
-            columns: [],
+            columns: [
+              {
+                name: 'id',
+                type: 'uuid',
+                description: 'Unchanged',
+                source: 'inferred' as const,
+              },
+            ],
           },
         ],
       };
 
-      const maliciousDescription = '<script>alert("XSS")</script>';
-      const sanitizedDescription = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
+      await store.save('test', initialMetadata);
 
-      await store.save('test', metadata);
-      await store.updateTableMetadata('test', 'users', { description: maliciousDescription });
+      // Verify initial data is sanitized
+      const loadedOnce = await store.load('test');
+      expect(loadedOnce?.tables[0].description).toBe(initialSanitized);
 
-      const updated = await store.load('test');
-      expect(updated?.tables[0].description).toBe(sanitizedDescription);
+      // Perform an update with raw, malicious HTML
+      await store.updateTableMetadata('test', 'users', {
+        description: updateDescription,
+      });
+
+      // Verify the update was sanitized and original data was not double-sanitized
+      const loadedAfterUpdate = await store.load('test');
+      expect(loadedAfterUpdate?.tables[0].description).toBe(updateSanitized);
+      expect(loadedAfterUpdate?.tables[0].columns[0].description).toBe('Unchanged');
     });
   });
 });
