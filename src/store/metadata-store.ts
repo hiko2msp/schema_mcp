@@ -40,6 +40,12 @@ export class MetadataStore {
       tables: metadata.tables.map(table => ({
         ...table,
         description: table.description ? this._sanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description
+            ? this._sanitizeHTML(column.description)
+            : '',
+        })),
       })),
     };
 
@@ -82,6 +88,15 @@ export class MetadataStore {
     return catalogs;
   }
 
+  private _unsanitizeHTML(text: string): string {
+    return text
+      .replace(/&#039;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&gt;/g, '>')
+      .replace(/&lt;/g, '<')
+      .replace(/&amp;/g, '&');
+  }
+
   async updateTableMetadata(
     catalog: string,
     tableName: string,
@@ -98,12 +113,27 @@ export class MetadataStore {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
+    // Temporarily unsanitize the loaded data to safely apply raw updates
+    const table = metadata.tables[tableIndex];
+    const unsanitizedTable = {
+      ...table,
+      description: table.description ? this._unsanitizeHTML(table.description) : '',
+      columns: table.columns.map(col => ({
+        ...col,
+        description: col.description ? this._unsanitizeHTML(col.description) : '',
+      })),
+    };
+
+    const updatedTable = {
+      ...unsanitizedTable,
       ...updates,
       source: 'overridden',
     };
 
+    // Replace the old table with the updated one
+    metadata.tables[tableIndex] = updatedTable;
+
+    // The save method will sanitize the entire object before writing
     await this.save(sanitizedCatalog, metadata);
   }
 
