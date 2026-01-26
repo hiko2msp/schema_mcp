@@ -29,6 +29,15 @@ export class MetadataStore {
       .replace(/'/g, '&#039;');
   }
 
+  private _unsanitizeHTML(text: string): string {
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'");
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
@@ -93,18 +102,33 @@ export class MetadataStore {
       throw new Error(`Catalog ${sanitizedCatalog} not found`);
     }
 
-    const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
+    // Unsanitize the loaded metadata to prevent double-sanitization
+    const unsanitizedMetadata = {
+      ...metadata,
+      tables: metadata.tables.map(table => ({
+        ...table,
+        description: table.description ? this._unsanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description ? this._unsanitizeHTML(column.description) : '',
+        })),
+      })),
+    };
+
+    const tableIndex = unsanitizedMetadata.tables.findIndex(t => t.name === tableName);
     if (tableIndex === -1) {
-      throw new Error(`Table ${tableName} not found`);
+      throw new Error(`Table ${tableName} not found in catalog ${sanitizedCatalog}`);
     }
 
-    metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
+    // Apply the raw (unsanitized) updates
+    unsanitizedMetadata.tables[tableIndex] = {
+      ...unsanitizedMetadata.tables[tableIndex],
       ...updates,
       source: 'overridden',
     };
 
-    await this.save(sanitizedCatalog, metadata);
+    // The save method will sanitize the entire object correctly
+    await this.save(sanitizedCatalog, unsanitizedMetadata);
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
