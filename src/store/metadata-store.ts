@@ -29,6 +29,15 @@ export class MetadataStore {
       .replace(/'/g, '&#039;');
   }
 
+  private _unsanitizeHTML(text: string): string {
+    return text
+      .replace(/&#039;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&gt;/g, '>')
+      .replace(/&lt;/g, '<')
+      .replace(/&amp;/g, '&');
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
@@ -40,6 +49,10 @@ export class MetadataStore {
       tables: metadata.tables.map(table => ({
         ...table,
         description: table.description ? this._sanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description ? this._sanitizeHTML(column.description) : '',
+        })),
       })),
     };
 
@@ -93,18 +106,32 @@ export class MetadataStore {
       throw new Error(`Catalog ${sanitizedCatalog} not found`);
     }
 
-    const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
+    // Unsanitize the loaded descriptions to work with raw data
+    const unsanitizedMetadata = {
+      ...metadata,
+      tables: metadata.tables.map(table => ({
+        ...table,
+        description: table.description ? this._unsanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description ? this._unsanitizeHTML(column.description) : '',
+        })),
+      })),
+    };
+
+    const tableIndex = unsanitizedMetadata.tables.findIndex(t => t.name === tableName);
     if (tableIndex === -1) {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
+    unsanitizedMetadata.tables[tableIndex] = {
+      ...unsanitizedMetadata.tables[tableIndex],
       ...updates,
       source: 'overridden',
     };
 
-    await this.save(sanitizedCatalog, metadata);
+    // Save the completely raw (unsanitized) metadata, `save` will handle sanitization
+    await this.save(sanitizedCatalog, unsanitizedMetadata);
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
