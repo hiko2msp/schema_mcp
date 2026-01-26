@@ -206,5 +206,40 @@ describe('MetadataStore', () => {
       const updated = await store.load('test');
       expect(updated?.tables[0].description).toBe(sanitizedDescription);
     });
+
+    it('should sanitize HTML in column descriptions to prevent XSS on save', async () => {
+      const maliciousDescription = '<img src=x onerror=alert(1)>';
+      const sanitizedDescription = '&lt;img src=x onerror=alert(1)&gt;';
+
+      const metadata = {
+        catalog: 'test-xss-column',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: 'Benign table description',
+            source: 'inferred' as const,
+            confidence: 0.9,
+            columns: [
+              {
+                name: 'profile_html',
+                type: 'text',
+                nullable: true,
+                primaryKey: false,
+                description: maliciousDescription, // Malicious payload
+                source: 'inferred' as const,
+                confidence: 0.9,
+              },
+            ],
+          },
+        ],
+      };
+
+      await store.save('test-xss-column', metadata);
+      const loaded = await store.load('test-xss-column');
+      expect(loaded?.tables[0].columns[0].description).toBe(sanitizedDescription);
+    });
   });
 });
