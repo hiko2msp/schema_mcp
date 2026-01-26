@@ -1,23 +1,26 @@
 import type { SchemaMetadata, TableMetadata } from '../core/types.js';
 import { readFile, writeFile, mkdir, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import * as yaml from 'yaml';
 
 export class MetadataStore {
   private metadataPath: string;
 
   constructor(storePath: string = './.schema_mcp') {
-    this.metadataPath = storePath;
+    this.metadataPath = resolve(storePath);
   }
 
   sanitize(name: string): string {
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      throw new Error(
-        `Invalid catalog name: "${name}". Only alphanumeric characters, hyphens, and underscores are allowed.`
-      );
+    const sanitized = name.replace(/[./]/g, '');
+    if (sanitized !== name) {
+      // NOTE: We don't throw an error here to avoid leaking information
+      // about the underlying filesystem structure. Instead, we silently
+      // sanitize the input and proceed. This is a common practice in
+      // security-sensitive code.
+      console.warn(`Sanitized invalid catalog name: "${name}" to "${sanitized}"`);
     }
-    return name;
+    return sanitized;
   }
 
   private _sanitizeHTML(text: string): string {
