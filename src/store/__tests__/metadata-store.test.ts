@@ -206,5 +206,42 @@ describe('MetadataStore', () => {
       const updated = await store.load('test');
       expect(updated?.tables[0].description).toBe(sanitizedDescription);
     });
+
+    it('should sanitize HTML in column descriptions to prevent XSS', async () => {
+      const maliciousDescription = '<script>alert("XSS")</script>';
+      const sanitizedDescription = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
+
+      const metadata: SchemaMetadata = {
+        catalog: 'test-xss',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: 'A table',
+            source: 'inferred',
+            confidence: 0.8,
+            columns: [
+              {
+                name: 'id',
+                type: 'integer',
+                nullable: false,
+                primaryKey: true,
+                description: maliciousDescription,
+                source: 'inferred',
+                confidence: 0.9,
+              },
+            ],
+          },
+        ],
+      };
+
+      await store.save('test-xss', metadata);
+      const loaded = await store.load('test-xss');
+      expect(loaded?.tables[0].columns[0].description).toBe(
+        sanitizedDescription
+      );
+    });
   });
 });
