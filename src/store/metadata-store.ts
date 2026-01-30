@@ -29,6 +29,16 @@ export class MetadataStore {
       .replace(/'/g, '&#039;');
   }
 
+  private _unsanitizeHTML(text: string): string {
+    if (!text) return '';
+    return text
+      .replace(/&#039;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&gt;/g, '>')
+      .replace(/&lt;/g, '<')
+      .replace(/&amp;/g, '&');
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
@@ -40,6 +50,10 @@ export class MetadataStore {
       tables: metadata.tables.map(table => ({
         ...table,
         description: table.description ? this._sanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description ? this._sanitizeHTML(column.description) : '',
+        })),
       })),
     };
 
@@ -98,13 +112,28 @@ export class MetadataStore {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
+    // To prevent data corruption from double-sanitization, we need to
+    // unsanitize the existing data, apply the raw updates, and then let
+    // the save() method perform a clean sanitization pass.
+    const rawMetadata = {
+      ...metadata,
+      tables: metadata.tables.map(table => ({
+        ...table,
+        description: this._unsanitizeHTML(table.description),
+        columns: table.columns.map(column => ({
+          ...column,
+          description: this._unsanitizeHTML(column.description),
+        })),
+      })),
+    };
+
+    rawMetadata.tables[tableIndex] = {
+      ...rawMetadata.tables[tableIndex],
       ...updates,
       source: 'overridden',
     };
 
-    await this.save(sanitizedCatalog, metadata);
+    await this.save(sanitizedCatalog, rawMetadata);
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
