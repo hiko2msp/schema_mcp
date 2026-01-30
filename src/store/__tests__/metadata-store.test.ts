@@ -206,5 +206,79 @@ describe('MetadataStore', () => {
       const updated = await store.load('test');
       expect(updated?.tables[0].description).toBe(sanitizedDescription);
     });
+
+    it('should sanitize HTML in column descriptions to prevent XSS on update', async () => {
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: 'Original description',
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [{
+              name: 'email',
+              type: 'varchar',
+              nullable: false,
+              primaryKey: false,
+              description: 'Original column description',
+              source: 'inferred' as const,
+              confidence: 0.5,
+            }],
+          },
+        ],
+      };
+
+      const maliciousDescription = '<script>alert("XSS")</script>';
+      const sanitizedDescription = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
+
+      await store.save('test', metadata);
+      await store.updateTableMetadata('test', 'users', {
+        columns: [{
+          name: 'email',
+          type: 'varchar',
+          nullable: false,
+          primaryKey: false,
+          description: maliciousDescription,
+          source: 'inferred' as const,
+          confidence: 0.5,
+        }],
+      });
+
+      const updated = await store.load('test');
+      expect(updated?.tables[0].columns[0].description).toBe(sanitizedDescription);
+    });
+
+    it('should not double-sanitize HTML descriptions on update', async () => {
+      const alreadySanitized = 'this is &amp; safe';
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: 'Original',
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [],
+          },
+        ],
+      };
+      await store.save('test', metadata);
+      // First update, should be sanitized
+      await store.updateTableMetadata('test', 'users', { description: 'this is & safe' });
+      const firstUpdate = await store.load('test');
+      expect(firstUpdate?.tables[0].description).toBe(alreadySanitized);
+
+      // Second update, should NOT be double-sanitized
+      await store.updateTableMetadata('test', 'users', { confidence: 0.99 });
+      const secondUpdate = await store.load('test');
+      expect(secondUpdate?.tables[0].description).toBe(alreadySanitized);
+    });
   });
 });
