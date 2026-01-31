@@ -206,5 +206,96 @@ describe('MetadataStore', () => {
       const updated = await store.load('test');
       expect(updated?.tables[0].description).toBe(sanitizedDescription);
     });
+
+    it('should sanitize HTML in column descriptions to prevent XSS on save', async () => {
+      const maliciousDescription = '<script>alert("XSS")</script>';
+      const sanitizedDescription = '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;';
+
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: 'Safe description',
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [
+              {
+                name: 'id',
+                type: 'uuid',
+                nullable: false,
+                primaryKey: true,
+                description: maliciousDescription,
+                source: 'inferred' as const,
+                confidence: 0.5,
+              },
+            ],
+          },
+        ],
+      };
+
+      await store.save('test', metadata);
+      const loaded = await store.load('test');
+      expect(loaded?.tables[0].columns[0].description).toBe(sanitizedDescription);
+    });
+
+    it('should not double-sanitize HTML on update', async () => {
+      const originalDescription = 'User & Client';
+      const sanitizedOnce = 'User &amp; Client';
+
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: originalDescription,
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [],
+          },
+        ],
+      };
+
+      await store.save('test', metadata);
+      let loaded = await store.load('test');
+      expect(loaded?.tables[0].description).toBe(sanitizedOnce);
+
+      await store.updateTableMetadata('test', 'users', { confidence: 0.9 });
+
+      loaded = await store.load('test');
+      expect(loaded?.tables[0].description).toBe(sanitizedOnce);
+    });
+
+    it('should find tables when searching with special characters in description', async () => {
+      const description = 'User & Client';
+
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: description,
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [],
+          },
+        ],
+      };
+
+      await store.save('test', metadata);
+
+      const results = await store.searchTables('test', 'User & Client');
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('users');
+    });
   });
 });

@@ -20,13 +20,22 @@ export class MetadataStore {
     return name;
   }
 
-  private _sanitizeHTML(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  private _sanitizeHTML(t: string): string {
+    return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  private _unsanitizeHTML(t: string): string {
+    return t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&');
+  }
+
+  private _sanitizeTable(t: TableMetadata): TableMetadata {
+    return { ...t, description: this._sanitizeHTML(t.description || ''),
+      columns: t.columns.map(c => ({ ...c, description: this._sanitizeHTML(c.description || '') })) };
+  }
+
+  private _unsanitizeTable(t: TableMetadata): TableMetadata {
+    return { ...t, description: this._unsanitizeHTML(t.description || ''),
+      columns: t.columns.map(c => ({ ...c, description: this._unsanitizeHTML(c.description || '') })) };
   }
 
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
@@ -37,10 +46,7 @@ export class MetadataStore {
     // Sanitize descriptions before saving
     const sanitizedMetadata = {
       ...metadata,
-      tables: metadata.tables.map(table => ({
-        ...table,
-        description: table.description ? this._sanitizeHTML(table.description) : '',
-      })),
+      tables: metadata.tables.map(table => this._sanitizeTable(table)),
     };
 
     await mkdir(catalogDir, { recursive: true });
@@ -82,53 +88,29 @@ export class MetadataStore {
     return catalogs;
   }
 
-  async updateTableMetadata(
-    catalog: string,
-    tableName: string,
-    updates: Partial<TableMetadata>
-  ): Promise<void> {
+  async updateTableMetadata(catalog: string, tableName: string, updates: Partial<TableMetadata>): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
-      throw new Error(`Catalog ${sanitizedCatalog} not found`);
-    }
+    if (!metadata) throw new Error(`Catalog ${sanitizedCatalog} not found`);
 
-    const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
-    if (tableIndex === -1) {
-      throw new Error(`Table ${tableName} not found`);
-    }
+    const rawMetadata: SchemaMetadata = { ...metadata, tables: metadata.tables.map(t => this._unsanitizeTable(t)) };
+    const idx = rawMetadata.tables.findIndex(t => t.name === tableName);
+    if (idx === -1) throw new Error(`Table ${tableName} not found`);
 
-    metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
-      ...updates,
-      source: 'overridden',
-    };
-
-    await this.save(sanitizedCatalog, metadata);
+    rawMetadata.tables[idx] = { ...rawMetadata.tables[idx], ...updates, source: 'overridden' };
+    await this.save(sanitizedCatalog, rawMetadata);
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
     const sanitizedCatalog = this.sanitize(catalog);
     const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
-      return [];
-    }
-
-    if (!query || query.trim() === '') {
-      return [];
-    }
+    if (!metadata || !query?.trim()) return [];
 
     const lowerQuery = query.toLowerCase();
-
-    return metadata.tables.filter(
-      table =>
-        table.name.toLowerCase().includes(lowerQuery) ||
-        table.description.toLowerCase().includes(lowerQuery) ||
-        table.columns.some(
-          col =>
-            col.name.toLowerCase().includes(lowerQuery) ||
-            col.description.toLowerCase().includes(lowerQuery)
-        )
-    );
+    return metadata.tables.filter(t => {
+      const raw = this._unsanitizeTable(t);
+      return raw.name.toLowerCase().includes(lowerQuery) || raw.description.toLowerCase().includes(lowerQuery) ||
+        raw.columns.some(c => c.name.toLowerCase().includes(lowerQuery) || c.description.toLowerCase().includes(lowerQuery));
+    });
   }
 }
