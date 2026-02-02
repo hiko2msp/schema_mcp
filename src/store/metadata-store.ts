@@ -29,19 +29,50 @@ export class MetadataStore {
       .replace(/'/g, '&#039;');
   }
 
+  private _unsanitizeHTML(text: string): string {
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'");
+  }
+
+  private _sanitizeMetadata(metadata: SchemaMetadata): SchemaMetadata {
+    return {
+      ...metadata,
+      tables: metadata.tables.map(table => ({
+        ...table,
+        description: table.description ? this._sanitizeHTML(table.description) : '',
+        columns: table.columns.map(col => ({
+          ...col,
+          description: col.description ? this._sanitizeHTML(col.description) : '',
+        })),
+      })),
+    };
+  }
+
+  private _unsanitizeMetadata(metadata: SchemaMetadata): SchemaMetadata {
+    return {
+      ...metadata,
+      tables: metadata.tables.map(table => ({
+        ...table,
+        description: table.description ? this._unsanitizeHTML(table.description) : '',
+        columns: table.columns.map(col => ({
+          ...col,
+          description: col.description ? this._unsanitizeHTML(col.description) : '',
+        })),
+      })),
+    };
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
     // Sanitize descriptions before saving
-    const sanitizedMetadata = {
-      ...metadata,
-      tables: metadata.tables.map(table => ({
-        ...table,
-        description: table.description ? this._sanitizeHTML(table.description) : '',
-      })),
-    };
+    const sanitizedMetadata = this._sanitizeMetadata(metadata);
 
     await mkdir(catalogDir, { recursive: true });
     await writeFile(filePath, yaml.stringify(sanitizedMetadata), 'utf-8');
@@ -88,10 +119,13 @@ export class MetadataStore {
     updates: Partial<TableMetadata>
   ): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
-    const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
+    const sanitizedMetadata = await this.load(sanitizedCatalog);
+    if (!sanitizedMetadata) {
       throw new Error(`Catalog ${sanitizedCatalog} not found`);
     }
+
+    // Unsanitize before updating to prevent double-sanitization when saving
+    const metadata = this._unsanitizeMetadata(sanitizedMetadata);
 
     const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
     if (tableIndex === -1) {
@@ -110,25 +144,26 @@ export class MetadataStore {
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
     const sanitizedCatalog = this.sanitize(catalog);
     const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
+    if (!metadata || !query || query.trim() === '') {
       return [];
     }
 
-    if (!query || query.trim() === '') {
-      return [];
-    }
-
+    // Unsanitize before searching to ensure queries with special characters match correctly
+    const rawMetadata = this._unsanitizeMetadata(metadata);
     const lowerQuery = query.toLowerCase();
 
-    return metadata.tables.filter(
-      table =>
-        table.name.toLowerCase().includes(lowerQuery) ||
-        table.description.toLowerCase().includes(lowerQuery) ||
-        table.columns.some(
+    // Use raw metadata for searching but return sanitized tables
+    return metadata.tables.filter((_, index) => {
+      const rawTable = rawMetadata.tables[index];
+      return (
+        rawTable.name.toLowerCase().includes(lowerQuery) ||
+        rawTable.description.toLowerCase().includes(lowerQuery) ||
+        rawTable.columns.some(
           col =>
             col.name.toLowerCase().includes(lowerQuery) ||
             col.description.toLowerCase().includes(lowerQuery)
         )
-    );
+      );
+    });
   }
 }
