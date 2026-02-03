@@ -20,30 +20,20 @@ export class MetadataStore {
     return name;
   }
 
-  private _sanitizeHTML(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
+  private _s = (t: string | null | undefined) => (t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  private _u = (t: string | null | undefined) => (t || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
 
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
-    const sanitizedCatalog = this.sanitize(catalog);
-    const catalogDir = join(this.metadataPath, sanitizedCatalog);
-    const filePath = join(catalogDir, 'metadata.yaml');
-
-    // Sanitize descriptions before saving
+    const sc = this.sanitize(catalog), dir = join(this.metadataPath, sc), filePath = join(dir, 'metadata.yaml');
     const sanitizedMetadata = {
       ...metadata,
-      tables: metadata.tables.map(table => ({
-        ...table,
-        description: table.description ? this._sanitizeHTML(table.description) : '',
+      tables: metadata.tables.map(t => ({
+        ...t,
+        description: this._s(t.description),
+        columns: t.columns.map(c => ({ ...c, description: this._s(c.description) })),
       })),
     };
-
-    await mkdir(catalogDir, { recursive: true });
+    await mkdir(dir, { recursive: true });
     await writeFile(filePath, yaml.stringify(sanitizedMetadata), 'utf-8');
   }
 
@@ -82,53 +72,21 @@ export class MetadataStore {
     return catalogs;
   }
 
-  async updateTableMetadata(
-    catalog: string,
-    tableName: string,
-    updates: Partial<TableMetadata>
-  ): Promise<void> {
-    const sanitizedCatalog = this.sanitize(catalog);
-    const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
-      throw new Error(`Catalog ${sanitizedCatalog} not found`);
-    }
-
-    const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
-    if (tableIndex === -1) {
-      throw new Error(`Table ${tableName} not found`);
-    }
-
-    metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
-      ...updates,
-      source: 'overridden',
-    };
-
-    await this.save(sanitizedCatalog, metadata);
+  async updateTableMetadata(catalog: string, tableName: string, updates: Partial<TableMetadata>): Promise<void> {
+    const sc = this.sanitize(catalog), m = await this.load(sc);
+    if (!m) throw new Error(`Catalog ${sc} not found`);
+    const tables = m.tables.map(t => ({ ...t, description: this._u(t.description), columns: t.columns.map(c => ({ ...c, description: this._u(c.description) })) }));
+    const idx = tables.findIndex(t => t.name === tableName);
+    if (idx === -1) throw new Error(`Table ${tableName} not found`);
+    tables[idx] = { ...tables[idx], ...updates, source: 'overridden' };
+    await this.save(sc, { ...m, tables });
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
-    const sanitizedCatalog = this.sanitize(catalog);
-    const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
-      return [];
-    }
-
-    if (!query || query.trim() === '') {
-      return [];
-    }
-
-    const lowerQuery = query.toLowerCase();
-
-    return metadata.tables.filter(
-      table =>
-        table.name.toLowerCase().includes(lowerQuery) ||
-        table.description.toLowerCase().includes(lowerQuery) ||
-        table.columns.some(
-          col =>
-            col.name.toLowerCase().includes(lowerQuery) ||
-            col.description.toLowerCase().includes(lowerQuery)
-        )
-    );
+    const sc = this.sanitize(catalog), m = await this.load(sc);
+    if (!m || !query?.trim()) return [];
+    const q = query.toLowerCase();
+    return m.tables.filter(t => t.name.toLowerCase().includes(q) || this._u(t.description).toLowerCase().includes(q) ||
+        t.columns.some(c => c.name.toLowerCase().includes(q) || this._u(c.description).toLowerCase().includes(q)));
   }
 }
