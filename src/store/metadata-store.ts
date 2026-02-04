@@ -20,7 +20,8 @@ export class MetadataStore {
     return name;
   }
 
-  private _sanitizeHTML(text: string): string {
+  private _escapeHTML(text: string | null | undefined): string {
+    if (!text) return '';
     return text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -29,17 +30,32 @@ export class MetadataStore {
       .replace(/'/g, '&#039;');
   }
 
+  private _unescapeHTML(text: string | null | undefined): string {
+    if (!text) return '';
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'");
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
-    // Sanitize descriptions before saving
+    // Sanitize all descriptions before saving (Defense in depth against XSS).
+    // Use escape-then-unescape pattern to ensure idempotency and prevent double-sanitization.
     const sanitizedMetadata = {
       ...metadata,
       tables: metadata.tables.map(table => ({
         ...table,
-        description: table.description ? this._sanitizeHTML(table.description) : '',
+        description: this._escapeHTML(this._unescapeHTML(table.description)),
+        columns: table.columns.map(col => ({
+          ...col,
+          description: this._escapeHTML(this._unescapeHTML(col.description)),
+        })),
       })),
     };
 
@@ -89,14 +105,10 @@ export class MetadataStore {
   ): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
-      throw new Error(`Catalog ${sanitizedCatalog} not found`);
-    }
+    if (!metadata) throw new Error(`Catalog ${sanitizedCatalog} not found`);
 
     const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
-    if (tableIndex === -1) {
-      throw new Error(`Table ${tableName} not found`);
-    }
+    if (tableIndex === -1) throw new Error(`Table ${tableName} not found`);
 
     metadata.tables[tableIndex] = {
       ...metadata.tables[tableIndex],
@@ -104,30 +116,24 @@ export class MetadataStore {
       source: 'overridden',
     };
 
+    // save() handles idempotency via escape/unescape pattern
     await this.save(sanitizedCatalog, metadata);
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
     const sanitizedCatalog = this.sanitize(catalog);
     const metadata = await this.load(sanitizedCatalog);
-    if (!metadata) {
-      return [];
-    }
-
-    if (!query || query.trim() === '') {
-      return [];
-    }
+    if (!metadata || !query || query.trim() === '') return [];
 
     const lowerQuery = query.toLowerCase();
-
     return metadata.tables.filter(
       table =>
         table.name.toLowerCase().includes(lowerQuery) ||
-        table.description.toLowerCase().includes(lowerQuery) ||
+        this._unescapeHTML(table.description).toLowerCase().includes(lowerQuery) ||
         table.columns.some(
           col =>
             col.name.toLowerCase().includes(lowerQuery) ||
-            col.description.toLowerCase().includes(lowerQuery)
+            this._unescapeHTML(col.description).toLowerCase().includes(lowerQuery)
         )
     );
   }
