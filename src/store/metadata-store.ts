@@ -82,6 +82,14 @@ export class MetadataStore {
     return catalogs;
   }
 
+  private _unSanitizeHTML(text: string): string {
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'");
+  }
   async updateTableMetadata(
     catalog: string,
     tableName: string,
@@ -93,18 +101,33 @@ export class MetadataStore {
       throw new Error(`Catalog ${sanitizedCatalog} not found`);
     }
 
-    const tableIndex = metadata.tables.findIndex(t => t.name === tableName);
+    // Unsanitize the loaded metadata to prepare for a raw update.
+    const rawMetadata = {
+      ...metadata,
+      tables: metadata.tables.map(table => ({
+        ...table,
+        description: table.description ? this._unSanitizeHTML(table.description) : '',
+        columns: table.columns.map(column => ({
+          ...column,
+          description: column.description ? this._unSanitizeHTML(column.description) : '',
+        })),
+      })),
+    };
+
+    const tableIndex = rawMetadata.tables.findIndex(t => t.name === tableName);
     if (tableIndex === -1) {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    metadata.tables[tableIndex] = {
-      ...metadata.tables[tableIndex],
+    // Apply the raw updates to the now fully raw metadata object.
+    rawMetadata.tables[tableIndex] = {
+      ...rawMetadata.tables[tableIndex],
       ...updates,
       source: 'overridden',
     };
 
-    await this.save(sanitizedCatalog, metadata);
+    // Save the raw object; the `save` method will handle sanitization.
+    await this.save(sanitizedCatalog, rawMetadata);
   }
 
   async searchTables(catalog: string, query: string): Promise<TableMetadata[]> {
