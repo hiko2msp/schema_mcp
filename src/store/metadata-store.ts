@@ -20,8 +20,22 @@ export class MetadataStore {
     return name;
   }
 
-  private _sanitizeHTML(text: string): string {
+  private _unescapeHTML(text: string | undefined | null): string {
+    if (!text) return '';
     return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&apos;/g, "'");
+  }
+
+  private _escapeHTML(text: string | undefined | null): string {
+    if (!text) return '';
+    // Unescape first to ensure we don't double-escape already sanitized content
+    const unescaped = this._unescapeHTML(text);
+    return unescaped
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -34,12 +48,16 @@ export class MetadataStore {
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
-    // Sanitize descriptions before saving
+    // Sanitize descriptions before saving (both table and column level)
     const sanitizedMetadata = {
       ...metadata,
       tables: metadata.tables.map(table => ({
         ...table,
-        description: table.description ? this._sanitizeHTML(table.description) : '',
+        description: this._escapeHTML(table.description),
+        columns: table.columns.map(col => ({
+          ...col,
+          description: this._escapeHTML(col.description),
+        })),
       })),
     };
 
@@ -120,15 +138,16 @@ export class MetadataStore {
 
     const lowerQuery = query.toLowerCase();
 
-    return metadata.tables.filter(
-      table =>
-        table.name.toLowerCase().includes(lowerQuery) ||
-        table.description.toLowerCase().includes(lowerQuery) ||
-        table.columns.some(
-          col =>
-            col.name.toLowerCase().includes(lowerQuery) ||
-            col.description.toLowerCase().includes(lowerQuery)
-        )
-    );
+    return metadata.tables.filter(table => {
+      const tableDesc = this._unescapeHTML(table.description).toLowerCase();
+      const matchesTable = table.name.toLowerCase().includes(lowerQuery) || tableDesc.includes(lowerQuery);
+
+      if (matchesTable) return true;
+
+      return table.columns.some(col => {
+        const colDesc = this._unescapeHTML(col.description).toLowerCase();
+        return col.name.toLowerCase().includes(lowerQuery) || colDesc.includes(lowerQuery);
+      });
+    });
   }
 }

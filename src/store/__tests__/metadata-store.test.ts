@@ -206,5 +206,40 @@ describe('MetadataStore', () => {
       const updated = await store.load('test');
       expect(updated?.tables[0].description).toBe(sanitizedDescription);
     });
+
+    it('should match special characters during search even when stored as HTML entities', async () => {
+      const description = 'Double & Trouble';
+      const metadata = {
+        catalog: 'test',
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        tables: [
+          {
+            name: 'users',
+            schema: 'public',
+            description: description,
+            source: 'inferred' as const,
+            confidence: 0.8,
+            columns: [],
+          },
+        ],
+      };
+
+      await store.save('test', metadata as any);
+
+      // Verify it's stored escaped
+      const loaded = await store.load('test');
+      expect(loaded?.tables[0].description).toBe('Double &amp; Trouble');
+
+      // Search for raw '&'
+      const results = await store.searchTables('test', '&');
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('users');
+
+      // Search for 'Trouble'
+      const results2 = await store.searchTables('test', 'trouble');
+      expect(results2.length).toBe(1);
+      expect(results2[0].name).toBe('users');
+    });
   });
 });
