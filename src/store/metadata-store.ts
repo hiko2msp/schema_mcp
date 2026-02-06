@@ -21,6 +21,7 @@ export class MetadataStore {
   }
 
   private _sanitizeHTML(text: string): string {
+    if (!text) return '';
     return text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -29,17 +30,32 @@ export class MetadataStore {
       .replace(/'/g, '&#039;');
   }
 
+  private _unescapeHTML(text: string): string {
+    if (!text) return '';
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&apos;/g, "'");
+  }
+
   async save(catalog: string, metadata: SchemaMetadata): Promise<void> {
     const sanitizedCatalog = this.sanitize(catalog);
     const catalogDir = join(this.metadataPath, sanitizedCatalog);
     const filePath = join(catalogDir, 'metadata.yaml');
 
-    // Sanitize descriptions before saving
+    // Sanitize descriptions before saving (idempotent: unescape then sanitize)
     const sanitizedMetadata = {
       ...metadata,
       tables: metadata.tables.map(table => ({
         ...table,
-        description: table.description ? this._sanitizeHTML(table.description) : '',
+        description: this._sanitizeHTML(this._unescapeHTML(table.description)),
+        columns: table.columns.map(col => ({
+          ...col,
+          description: this._sanitizeHTML(this._unescapeHTML(col.description)),
+        })),
       })),
     };
 
@@ -123,11 +139,11 @@ export class MetadataStore {
     return metadata.tables.filter(
       table =>
         table.name.toLowerCase().includes(lowerQuery) ||
-        table.description.toLowerCase().includes(lowerQuery) ||
+        this._unescapeHTML(table.description).toLowerCase().includes(lowerQuery) ||
         table.columns.some(
           col =>
             col.name.toLowerCase().includes(lowerQuery) ||
-            col.description.toLowerCase().includes(lowerQuery)
+            this._unescapeHTML(col.description).toLowerCase().includes(lowerQuery)
         )
     );
   }
